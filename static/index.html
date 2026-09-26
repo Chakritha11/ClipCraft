@@ -475,6 +475,25 @@
                 </div>
               </div>
 
+              <!-- Caption Text Size Control -->
+              <div class="control-group">
+                <div class="control-label">
+                  <span>Caption Text Size</span>
+                  <span class="control-badge" id="captionSizeBadge">15 px (Default)</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+                  <span style="font-size:11px; font-weight:700; color:var(--beige-taupe);">A</span>
+                  <input type="range" class="slider-styled" id="captionSizeSlider" min="10" max="28" value="15" step="1" oninput="onCaptionSizeChange(this.value)">
+                  <span style="font-size:16px; font-weight:800; color:var(--beige-cream);">A</span>
+                </div>
+                <div class="pill-selector" id="captionSizePills">
+                  <button class="pill-btn" onclick="setCaptionSizePreset(12, this)">Compact (12px)</button>
+                  <button class="pill-btn active" id="sizePresetMedium" onclick="setCaptionSizePreset(15, this)">Default (15px)</button>
+                  <button class="pill-btn" onclick="setCaptionSizePreset(18, this)">Large (18px)</button>
+                  <button class="pill-btn" onclick="setCaptionSizePreset(22, this)">Hero (22px)</button>
+                </div>
+              </div>
+
               <!-- Top Hook Banner Customizer -->
               <div class="control-group">
                 <div class="control-label">

@@ -4,6 +4,7 @@ let activeRatio = '9:16';
 let captionPreset = 'mrbeast';
 let captionColor = 'gold';
 let captionPosition = 'bottom';
+let captionFontSize = 15;
 let targetDuration = 45;
 let targetClipCount = 6;
 let whisperModel = 'tiny';
@@ -658,6 +659,7 @@ async function exportClipById(clipId) {
         hook: $('toggleHookBanner').checked ? $('hookCustomTextInput').value : '',
         position: captionPosition,
         color: captionColor,
+        font_size: captionFontSize,
         watermark: currentWatermark
       })
     });
@@ -723,6 +725,7 @@ async function batchExportAllClips() {
         preset: captionPreset,
         position: captionPosition,
         color: captionColor,
+        font_size: captionFontSize,
         watermark: currentWatermark
       })
     });
@@ -940,6 +943,55 @@ function setCaptionPosition(pos, btn) {
   toast(`Subtitles positioned at: ${pos.toUpperCase()}`);
 }
 
+// --- Dynamic Caption Text Size Controls ---
+function onCaptionSizeChange(val) {
+  captionFontSize = parseInt(val, 10);
+  const badge = $('captionSizeBadge');
+  if (badge) {
+    let label = 'Medium';
+    if (captionFontSize <= 12) label = 'Compact';
+    else if (captionFontSize <= 15) label = 'Default';
+    else if (captionFontSize <= 19) label = 'Large';
+    else label = 'Hero';
+    badge.textContent = `${captionFontSize} px (${label})`;
+  }
+
+  // Update pill buttons active state
+  document.querySelectorAll('#captionSizePills .pill-btn').forEach(b => {
+    if (b.textContent.includes(`${captionFontSize}px`)) {
+      b.classList.add('active');
+    } else {
+      b.classList.remove('active');
+    }
+  });
+
+  applyLiveCaptionOverlayStyle();
+}
+
+function setCaptionSizePreset(size, btn) {
+  captionFontSize = parseInt(size, 10);
+  const slider = $('captionSizeSlider');
+  if (slider) slider.value = size;
+
+  if (btn && btn.parentElement) {
+    btn.parentElement.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  const badge = $('captionSizeBadge');
+  if (badge) {
+    let label = 'Medium';
+    if (size <= 12) label = 'Compact';
+    else if (size <= 15) label = 'Default';
+    else if (size <= 19) label = 'Large';
+    else label = 'Hero';
+    badge.textContent = `${size} px (${label})`;
+  }
+
+  applyLiveCaptionOverlayStyle();
+  toast(`Caption size: ${size}px`);
+}
+
 function applyLiveCaptionOverlayStyle() {
   const el = $('liveSubText');
   if (!el) return;
@@ -952,44 +1004,46 @@ function applyLiveCaptionOverlayStyle() {
     white: '#ffffff'
   }[captionColor] || '#dfa067';
 
-  // Apply visual styling matching ffmpeg preset with refined font sizes
+  const fs = captionFontSize || 15;
+
+  // Apply visual styling matching ffmpeg preset with user-adjusted font size
   if (captionPreset === 'mrbeast') {
     el.style.fontFamily = 'Impact, -apple-system, sans-serif';
-    el.style.fontSize = '16px';
+    el.style.fontSize = `${fs + 1}px`;
     el.style.color = colorHex;
     el.style.textShadow = '-1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000';
     el.style.background = 'transparent';
   } else if (captionPreset === 'tiktok') {
     el.style.fontFamily = 'Arial, -apple-system, sans-serif';
-    el.style.fontSize = '15px';
+    el.style.fontSize = `${fs}px`;
     el.style.fontWeight = '800';
     el.style.color = '#ffffff';
     el.style.textShadow = '-1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000';
     el.style.background = 'transparent';
   } else if (captionPreset === 'karaoke') {
     el.style.fontFamily = 'Arial, -apple-system, sans-serif';
-    el.style.fontSize = '15px';
+    el.style.fontSize = `${fs}px`;
     el.style.fontWeight = '800';
     el.style.color = '#e5ac74';
     el.style.textShadow = '0 0 6px rgba(229,172,116,0.8), -1px -1px 0 #000, 1px 1px 0 #000';
     el.style.background = 'transparent';
   } else if (captionPreset === 'cyber') {
     el.style.fontFamily = 'Trebuchet MS, -apple-system, sans-serif';
-    el.style.fontSize = '15px';
+    el.style.fontSize = `${fs}px`;
     el.style.fontWeight = '800';
     el.style.color = colorHex;
     el.style.textShadow = '-1.5px -1.5px 0 #332211, 1.5px 1.5px 0 #000';
     el.style.background = 'transparent';
   } else if (captionPreset === 'clean') {
     el.style.fontFamily = 'Helvetica, -apple-system, sans-serif';
-    el.style.fontSize = '13px';
+    el.style.fontSize = `${Math.max(10, fs - 2)}px`;
     el.style.fontWeight = '600';
     el.style.color = '#f7f2ea';
     el.style.textShadow = 'none';
     el.style.background = 'rgba(18, 14, 11, 0.85)';
   } else if (captionPreset === 'minimal') {
     el.style.fontFamily = 'Arial, -apple-system, sans-serif';
-    el.style.fontSize = '12px';
+    el.style.fontSize = `${Math.max(9, fs - 3)}px`;
     el.style.fontWeight = '500';
     el.style.color = '#ded0bd';
     el.style.textShadow = '1px 1px 3px rgba(0, 0, 0, 0.9)';

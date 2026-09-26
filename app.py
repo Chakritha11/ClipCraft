@@ -630,6 +630,7 @@ class Render(BaseModel):
     hook: str = ''
     position: str = 'bottom'
     color: str = 'gold'
+    font_size: int = 15
     custom_text: str = ''
     watermark: str = ''
 
@@ -677,13 +678,17 @@ def render(x: Render):
     }
     primary = color_map.get(x.color, '&H0073A3D4&')
     
+    # Calculate user-selected dynamic font size and proportional outline width
+    user_fs = max(10, min(36, getattr(x, 'font_size', 15)))
+    outline_val = max(1.0, round(user_fs * 0.13, 1))
+
     styles = {
-        'mrbeast': f"Fontname=Segoe UI Emoji,Fontsize=17,Bold=1,Outline=2.2,OutlineColour=&H00000000&,PrimaryColour={primary},Alignment=2,MarginV={pos_margin}",
-        'karaoke': f"Fontname=Segoe UI Emoji,Fontsize=16,Bold=1,Outline=1.8,OutlineColour=&H00000000&,PrimaryColour={primary},Alignment=2,MarginV={pos_margin}",
-        'tiktok': f"Fontname=Segoe UI Emoji,Fontsize=15,Bold=1,Outline=1.8,OutlineColour=&H00000000&,PrimaryColour=&H00FFFFFF&,Alignment=2,MarginV={pos_margin}",
-        'cyber': f"Fontname=Segoe UI Emoji,Fontsize=16,Bold=1,Outline=1.8,OutlineColour=&H00332211&,PrimaryColour={primary},Alignment=2,MarginV={pos_margin}",
-        'clean': f"Fontname=Segoe UI Emoji,Fontsize=13,Bold=0,Outline=1.2,OutlineColour=&H40000000&,PrimaryColour=&H00EAF2F7&,Alignment=2,MarginV={pos_margin}",
-        'minimal': f"Fontname=Segoe UI Emoji,Fontsize=12,Bold=0,Outline=0.8,OutlineColour=&H80000000&,PrimaryColour=&H00DED0BD&,Alignment=2,MarginV={pos_margin}"
+        'mrbeast': f"Fontname=Segoe UI Emoji,Fontsize={user_fs + 1},Bold=1,Outline={outline_val + 0.3},OutlineColour=&H00000000&,PrimaryColour={primary},Alignment=2,MarginV={pos_margin}",
+        'karaoke': f"Fontname=Segoe UI Emoji,Fontsize={user_fs},Bold=1,Outline={outline_val},OutlineColour=&H00000000&,PrimaryColour={primary},Alignment=2,MarginV={pos_margin}",
+        'tiktok': f"Fontname=Segoe UI Emoji,Fontsize={user_fs},Bold=1,Outline={outline_val},OutlineColour=&H00000000&,PrimaryColour=&H00FFFFFF&,Alignment=2,MarginV={pos_margin}",
+        'cyber': f"Fontname=Segoe UI Emoji,Fontsize={user_fs},Bold=1,Outline={outline_val},OutlineColour=&H00332211&,PrimaryColour={primary},Alignment=2,MarginV={pos_margin}",
+        'clean': f"Fontname=Segoe UI Emoji,Fontsize={max(10, user_fs - 2)},Bold=0,Outline=1.2,OutlineColour=&H40000000&,PrimaryColour=&H00EAF2F7&,Alignment=2,MarginV={pos_margin}",
+        'minimal': f"Fontname=Segoe UI Emoji,Fontsize={max(9, user_fs - 3)},Bold=0,Outline=0.8,OutlineColour=&H80000000&,PrimaryColour=&H00DED0BD&,Alignment=2,MarginV={pos_margin}"
     }
     style_str = styles.get(x.preset, styles['mrbeast'])
     
@@ -750,6 +755,7 @@ class BatchRender(BaseModel):
     preset: str = 'mrbeast'
     position: str = 'bottom'
     color: str = 'gold'
+    font_size: int = 15
     watermark: str = ''
 
 @app.post('/api/batch-render')
@@ -773,6 +779,7 @@ def batch_render(x: BatchRender):
             hook=c.get('hook', ''),
             position=x.position,
             color=x.color,
+            font_size=x.font_size,
             watermark=x.watermark
         )
         try:
