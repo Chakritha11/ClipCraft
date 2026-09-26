@@ -881,12 +881,12 @@ def batch_render(x: BatchRender):
 
 @app.get('/api/sample')
 def load_sample():
-    """Loads a pre-installed demo video so the user can test the studio immediately."""
+    """Loads a pre-installed sample video so the user can test the studio immediately."""
     sample_file = UP / 'test_yt_jNQXAC9IVRw.mp4'
     if not sample_file.exists():
         raise HTTPException(404, 'Sample file not found. Upload or import a video.')
         
-    pid = 'sample_demo'
+    pid = 'sample_video'
     d = get_duration(sample_file)
     segs = [
         {'start': 0.0, 'end': 3.2, 'text': 'Alright, so here we are in front of the elephants.'},
@@ -896,7 +896,7 @@ def load_sample():
     PROJECTS[pid] = {
         'id': pid,
         'path': str(sample_file),
-        'name': 'Me at the zoo (Demo Sample)',
+        'name': 'Me at the zoo (Sample Video)',
         'duration': d or 19.0,
         'segments': segs,
         'clips': make_candidates(segs, 10, 2),
@@ -905,7 +905,7 @@ def load_sample():
     }
     return {
         'id': pid,
-        'name': 'Me at the zoo (Demo Sample)',
+        'name': 'Me at the zoo (Sample Video)',
         'duration': d or 19.0,
         'formatted_duration': fmt_time(d or 19.0),
         'url': f'/media/uploads/{sample_file.name}',

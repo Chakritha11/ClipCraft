@@ -277,16 +277,16 @@ async function importYouTubeUrl() {
   }
 }
 
-// --- Quick Demo Sample Video Loader ---
-async function quickLoadDemoSample() {
-  const btn = $('btnQuickDemo');
+// --- Quick Sample Video Loader ---
+async function quickLoadSampleVideo() {
+  const btn = $('btnQuickSample');
   if (btn) btn.disabled = true;
-  showPipeline('Loading demo video & captions…', 'Step 1/2', 40);
+  showPipeline('Loading sample video & captions…', 'Step 1/2', 40);
 
   try {
     const res = await fetch('/api/sample');
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Could not load demo sample');
+    if (!res.ok) throw new Error(data.detail || 'Could not load sample video');
 
     project = data;
     loadProjectIntoStudio(data);
@@ -294,7 +294,7 @@ async function quickLoadDemoSample() {
     drawTranscript();
     hidePipeline();
 
-    toast('Loaded Demo Video with captions & transcript! ▶ Playing');
+    toast('Loaded Sample Video with captions & transcript! ▶ Playing');
     setTimeout(() => {
       stageVideo.play().catch(() => {});
     }, 400);
