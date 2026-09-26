@@ -803,20 +803,22 @@ video#stageVideo {
 .live-subtitle-text {
   display: inline-block;
   font-family: Impact, -apple-system, sans-serif;
-  font-size: 24px;
+  font-size: 15px;
   font-weight: 800;
+  max-width: 88%;
   color: var(--viral-gold);
   text-shadow: 
-    -2px -2px 0 #000, 
-    2px -2px 0 #000, 
-    -2px 2px 0 #000, 
-    2px 2px 0 #000,
-    0 4px 10px rgba(0,0,0,0.8);
+    -1.5px -1.5px 0 #000, 
+    1.5px -1.5px 0 #000, 
+    -1.5px 1.5px 0 #000, 
+    1.5px 1.5px 0 #000,
+    0 3px 8px rgba(0,0,0,0.8);
   line-height: 1.25;
-  padding: 4px 10px;
-  border-radius: 6px;
-  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
   text-transform: uppercase;
+  word-break: break-word;
 }
 
 /* Live Hook Banner */

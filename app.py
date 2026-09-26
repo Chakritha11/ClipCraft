@@ -73,43 +73,44 @@ def clean_subtitle_text(txt: str) -> str:
     return txt
 
 def get_sentence_end_emoji(sentence: str) -> str:
-    """Intelligently assigns a contextual emoji to sentence conclusions."""
+    """Intelligently assigns a contextual emoji only to rare, high-impact moments. Normal sentences get NO emoji."""
+    if not sentence:
+        return ""
     low = sentence.lower()
-    if any(w in low for w in ['secret', 'truth', 'whisper', 'hidden', 'nobody knows']):
-        return '🤫'
-    if any(w in low for w in ['money', 'dollar', 'million', 'billion', 'rich', 'cash', 'crypto', 'profit', 'sales', 'cost']):
+    
+    # Financial / Wealth triggers
+    if any(w in low for w in ['million', 'billion', '$', 'dollar', 'crypto', 'jackpot', 'wealthy', 'profits']):
         return '💰'
-    if any(w in low for w in ['warning', 'danger', 'mistake', 'wrong', 'fail', 'avoid', 'stop', 'never', 'risk']):
+    # Danger / Warning triggers
+    if any(w in low for w in ['danger', 'warning', 'hazard', 'toxic', 'dont do this', "don't do this", 'fatal']):
         return '⚠️'
-    if any(w in low for w in ['shocking', 'insane', 'crazy', 'unbelievable', 'omg', 'impossible', 'mindblown']):
+    # Mind-blown triggers
+    if any(w in low for w in ['mindblown', 'mind-blowing', 'unbelievable', 'jaw-dropping']):
         return '🤯'
-    if any(w in low for w in ['best', 'win', 'goat', 'champion', 'first', 'number one', 'epic', 'legendary']):
+    # Champion / Record triggers
+    if any(w in low for w in ['champion', 'world record', 'gold medal', 'first place']):
         return '🏆'
-    if any(w in low for w in ['fire', 'lit', 'viral', 'trend', 'trending', 'hype']):
+    # High viral hype triggers
+    if any(w in low for w in ['viral trend', 'hyped up']):
         return '🔥'
-    if any(w in low for w in ['smart', 'idea', 'genius', 'hack', 'tip', 'learn', 'method', 'brain', 'logic']):
-        return '💡'
-    if any(w in low for w in ['love', 'favorite', 'heart', 'amazing', 'beautiful', 'elephant', 'animal', 'zoo']):
-        return '✨'
-    if any(w in low for w in ['funny', 'laugh', 'lol', 'hilarious', 'joke']):
-        return '😂'
-    if sentence.strip().endswith('?') or any(w in low for w in ['why', 'how', 'what if', 'guess what']):
-        return '🤔'
-    if sentence.strip().endswith('!'):
-        return '⚡'
-    return '✨'
+    # Secret triggers
+    if any(w in low for w in ['top secret', 'nobody knows', 'confidential']):
+        return '🤫'
+        
+    return ""
 
 def generate_voice_matched_subtitles(segs, clip_start, clip_end, out_srt_path, custom_text=""):
     """
-    Generates clean, voice-matched subtitles with 3-5 word speech chunks
-    and contextual emojis at the end of sentences.
+    Generates clean, voice-matched subtitles with natural 3-5 word speech chunks.
+    Only rare high-impact moments get an emoji; no unnecessary emojis are forced.
     """
     entries = []
     
     if custom_text:
         text = clean_subtitle_text(custom_text)
         emoji = get_sentence_end_emoji(text)
-        entries.append((0.0, max(1.2, clip_end - clip_start), f"{text} {emoji}"))
+        formatted = f"{text} {emoji}".strip() if emoji else text
+        entries.append((0.0, max(1.2, clip_end - clip_start), formatted))
     else:
         relevant = [s for s in segs if s['end'] >= clip_start and s['start'] <= clip_end]
         for s in relevant:
@@ -118,27 +119,66 @@ def generate_voice_matched_subtitles(segs, clip_start, clip_end, out_srt_path, c
                 continue
             seg_start = max(0.0, s['start'] - clip_start)
             seg_end = min(clip_end - clip_start, s['end'] - clip_start)
-            seg_dur = max(0.5, seg_end - seg_start)
+            seg_dur = max(0.4, seg_end - seg_start)
             
+            # Check if exact word-level timestamps are provided
+            words_data = s.get('words')
+            if words_data and len(words_data) > 0:
+                rel_words = [
+                    w for w in words_data 
+                    if w.get('end', 0) >= clip_start and w.get('start', 0) <= clip_end
+                ]
+                if rel_words:
+                    chunk_size = 4
+                    word_chunks = [rel_words[i:i + chunk_size] for i in range(0, len(rel_words), chunk_size)]
+                    for c_idx, chunk in enumerate(word_chunks):
+                        c_start = max(0.0, chunk[0]['start'] - clip_start)
+                        c_end = min(clip_end - clip_start, chunk[-1]['end'] - clip_start)
+                        if c_end <= c_start:
+                            c_end = c_start + 0.5
+                        chunk_text = ' '.join(w['word'] for w in chunk).strip()
+                        c_clean = re.sub(r'[.!?,;]+$', '', chunk_text).strip()
+                        if c_idx == len(word_chunks) - 1:
+                            emoji = get_sentence_end_emoji(raw_text)
+                            line = f"{c_clean} {emoji}".strip() if emoji else c_clean
+                        else:
+                            line = c_clean
+                        if line:
+                            entries.append((c_start, c_end, line))
+                    continue
+
+            # Fallback when word-level timestamps are not present:
             words = raw_text.split()
-            if len(words) <= 5 or seg_dur <= 2.2:
+            if len(words) <= 5 or seg_dur <= 2.0:
                 emoji = get_sentence_end_emoji(raw_text)
                 clean_sentence = re.sub(r'[.!?,;]+$', '', raw_text).strip()
-                entries.append((seg_start, seg_end, f"{clean_sentence} {emoji}"))
+                line = f"{clean_sentence} {emoji}".strip() if emoji else clean_sentence
+                entries.append((seg_start, seg_end, line))
             else:
                 chunk_size = 4
                 word_chunks = [words[i:i + chunk_size] for i in range(0, len(words), chunk_size)]
                 num_chunks = len(word_chunks)
-                step = seg_dur / num_chunks
+                
+                # Weight duration by character length of each chunk for voice cadence
+                chunk_weights = [sum(max(2, len(w)) for w in chunk) for chunk in word_chunks]
+                total_weight = max(1, sum(chunk_weights))
+                
+                cur_start = seg_start
                 for c_idx, chunk in enumerate(word_chunks):
-                    c_start = seg_start + (c_idx * step)
-                    c_end = min(seg_end, c_start + step)
+                    fraction = chunk_weights[c_idx] / total_weight
+                    c_dur = seg_dur * fraction
+                    c_end = min(seg_end, cur_start + c_dur)
                     c_clean = re.sub(r'[.!?,;]+$', '', ' '.join(chunk)).strip()
+                    
                     if c_idx == num_chunks - 1:
                         emoji = get_sentence_end_emoji(raw_text)
-                        entries.append((c_start, c_end, f"{c_clean} {emoji}"))
+                        line = f"{c_clean} {emoji}".strip() if emoji else c_clean
                     else:
-                        entries.append((c_start, c_end, c_clean))
+                        line = c_clean
+                        
+                    if line:
+                        entries.append((cur_start, c_end, line))
+                    cur_start = c_end
                         
     with out_srt_path.open('w', encoding='utf-8') as f:
         for idx, (a, b, txt) in enumerate(entries, 1):
@@ -254,11 +294,12 @@ def make_candidates(segs, target=45, count=6):
         first_sentence = text.split('.')[0].split('?')[0].split('!')[0].strip()
         clean_first = clean_subtitle_text(first_sentence)
         emoji = get_sentence_end_emoji(clean_first or text)
+        suffix = f" {emoji}" if emoji else ""
         
         if len(clean_first) < 14:
-            hook = ((text[:72] + '...') if len(text) > 72 else text) + f" {emoji}"
+            hook = ((text[:72] + '...') if len(text) > 72 else text) + suffix
         else:
-            hook = f"{clean_first[:72]} {emoji}"
+            hook = f"{clean_first[:72]}{suffix}"
 
         reasons = []
         if cue_matches:
@@ -281,7 +322,7 @@ def make_candidates(segs, target=45, count=6):
             'popularity_score': score,
             'text': text,
             'hook': hook,
-            'title': (clean_title or 'Must Watch Highlight') + f" {emoji}",
+            'title': (clean_title or 'Must Watch Highlight') + suffix,
             'reasons': reasons,
             'hashtags': ['#shorts', '#viral', '#trending', '#fyp', '#clipcraft'],
             'word_count': word_count,
@@ -498,14 +539,34 @@ def analyze(x: Analyze):
             'duration': pr['duration']
         }
         
-    # Run faster-whisper
+    # Run faster-whisper with word-level timestamps
     try:
         from faster_whisper import WhisperModel
         # Use tiny, base, or small
         model_name = x.model if x.model in ['tiny', 'base', 'small'] else 'tiny'
         model = WhisperModel(model_name, device='cpu', compute_type='int8')
-        segments_gen, info = model.transcribe(pr['path'], vad_filter=True)
-        segs = [{'start': round(s.start, 2), 'end': round(s.end, 2), 'text': s.text.strip()} for s in segments_gen]
+        segments_gen, info = model.transcribe(pr['path'], vad_filter=True, word_timestamps=True)
+        segs = []
+        for s in segments_gen:
+            clean_txt = clean_subtitle_text(s.text)
+            if not clean_txt:
+                continue
+            words_list = []
+            if getattr(s, 'words', None):
+                for w in s.words:
+                    w_txt = clean_subtitle_text(w.word)
+                    if w_txt:
+                        words_list.append({
+                            'start': round(w.start, 2),
+                            'end': round(w.end, 2),
+                            'word': w_txt
+                        })
+            segs.append({
+                'start': round(s.start, 2),
+                'end': round(s.end, 2),
+                'text': clean_txt,
+                'words': words_list
+            })
     except Exception as e:
         raise HTTPException(500, f'Whisper transcription error: {str(e)}')
         
@@ -617,12 +678,12 @@ def render(x: Render):
     primary = color_map.get(x.color, '&H0073A3D4&')
     
     styles = {
-        'mrbeast': f"Fontname=Segoe UI Emoji,Fontsize=26,Bold=1,Outline=3.5,OutlineColour=&H00000000&,PrimaryColour={primary},Alignment=2,MarginV={pos_margin}",
-        'karaoke': f"Fontname=Segoe UI Emoji,Fontsize=23,Bold=1,Outline=2.5,OutlineColour=&H00000000&,PrimaryColour={primary},Alignment=2,MarginV={pos_margin}",
-        'tiktok': f"Fontname=Segoe UI Emoji,Fontsize=22,Bold=1,Outline=2.5,OutlineColour=&H00000000&,PrimaryColour=&H00FFFFFF&,Alignment=2,MarginV={pos_margin}",
-        'cyber': f"Fontname=Segoe UI Emoji,Fontsize=23,Bold=1,Outline=2.5,OutlineColour=&H00332211&,PrimaryColour={primary},Alignment=2,MarginV={pos_margin}",
-        'clean': f"Fontname=Segoe UI Emoji,Fontsize=18,Bold=0,Outline=1.5,OutlineColour=&H40000000&,PrimaryColour=&H00EAF2F7&,Alignment=2,MarginV={pos_margin}",
-        'minimal': f"Fontname=Segoe UI Emoji,Fontsize=16,Bold=0,Outline=1,OutlineColour=&H80000000&,PrimaryColour=&H00DED0BD&,Alignment=2,MarginV={pos_margin}"
+        'mrbeast': f"Fontname=Segoe UI Emoji,Fontsize=17,Bold=1,Outline=2.2,OutlineColour=&H00000000&,PrimaryColour={primary},Alignment=2,MarginV={pos_margin}",
+        'karaoke': f"Fontname=Segoe UI Emoji,Fontsize=16,Bold=1,Outline=1.8,OutlineColour=&H00000000&,PrimaryColour={primary},Alignment=2,MarginV={pos_margin}",
+        'tiktok': f"Fontname=Segoe UI Emoji,Fontsize=15,Bold=1,Outline=1.8,OutlineColour=&H00000000&,PrimaryColour=&H00FFFFFF&,Alignment=2,MarginV={pos_margin}",
+        'cyber': f"Fontname=Segoe UI Emoji,Fontsize=16,Bold=1,Outline=1.8,OutlineColour=&H00332211&,PrimaryColour={primary},Alignment=2,MarginV={pos_margin}",
+        'clean': f"Fontname=Segoe UI Emoji,Fontsize=13,Bold=0,Outline=1.2,OutlineColour=&H40000000&,PrimaryColour=&H00EAF2F7&,Alignment=2,MarginV={pos_margin}",
+        'minimal': f"Fontname=Segoe UI Emoji,Fontsize=12,Bold=0,Outline=0.8,OutlineColour=&H80000000&,PrimaryColour=&H00DED0BD&,Alignment=2,MarginV={pos_margin}"
     }
     style_str = styles.get(x.preset, styles['mrbeast'])
     
@@ -633,8 +694,8 @@ def render(x: Render):
         safe_hook = re.sub(r'[\'":\\]', '', x.hook)[:80]
         banner_y = 140 if x.ratio in ['9:16', '4:5'] else 60
         vf_filters.append(
-            f"drawbox=y={banner_y - 20}:color=black@0.7:width=iw:height=100:t=fill:enable='between(t,0,3.8)',"
-            f"drawtext=text='{safe_hook}':fontsize=42:fontcolor=#f7f2ea:borderw=3:bordercolor=black:x=(w-text_w)/2:y={banner_y}:enable='between(t,0,3.8)'"
+            f"drawbox=y={banner_y - 20}:color=black@0.7:width=iw:height=80:t=fill:enable='between(t,0,3.8)',"
+            f"drawtext=text='{safe_hook}':fontsize=32:fontcolor=#f7f2ea:borderw=2:bordercolor=black:x=(w-text_w)/2:y={banner_y}:enable='between(t,0,3.8)'"
         )
         
     if x.watermark:

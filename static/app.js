@@ -55,21 +55,19 @@ function cleanSubtitleText(txt) {
     .trim();
 }
 
-// --- Contextual Sentence Emojis ---
+// --- Contextual Sentence Emojis (Selective & Rare Only) ---
 function getSentenceEndEmoji(sentence) {
-  const low = (sentence || '').toLowerCase();
-  if (low.includes('secret') || low.includes('truth') || low.includes('whisper') || low.includes('nobody knows')) return '🤫';
-  if (low.includes('money') || low.includes('dollar') || low.includes('million') || low.includes('billion') || low.includes('rich') || low.includes('cash') || low.includes('crypto')) return '💰';
-  if (low.includes('warning') || low.includes('danger') || low.includes('mistake') || low.includes('wrong') || low.includes('fail') || low.includes('avoid') || low.includes('stop') || low.includes('never')) return '⚠️';
-  if (low.includes('shocking') || low.includes('insane') || low.includes('crazy') || low.includes('unbelievable') || low.includes('omg') || low.includes('impossible')) return '🤯';
-  if (low.includes('best') || low.includes('win') || low.includes('goat') || low.includes('champion') || low.includes('first') || low.includes('number one') || low.includes('top')) return '🏆';
-  if (low.includes('fire') || low.includes('lit') || low.includes('viral') || low.includes('trend') || low.includes('hype')) return '🔥';
-  if (low.includes('smart') || low.includes('idea') || low.includes('genius') || low.includes('hack') || low.includes('tip') || low.includes('learn') || low.includes('method')) return '💡';
-  if (low.includes('love') || low.includes('favorite') || low.includes('heart') || low.includes('amazing') || low.includes('elephant') || low.includes('cool')) return '✨';
-  if (low.includes('funny') || low.includes('laugh') || low.includes('lol') || low.includes('joke')) return '😂';
-  if (sentence.trim().endsWith('?') || low.includes('why') || low.includes('how') || low.includes('what if')) return '🤔';
-  if (sentence.trim().endsWith('!')) return '⚡';
-  return '✨';
+  if (!sentence) return '';
+  const low = sentence.toLowerCase();
+  
+  if (low.includes('million') || low.includes('billion') || low.includes('$') || low.includes('dollar') || low.includes('crypto') || low.includes('jackpot') || low.includes('wealth')) return '💰';
+  if (low.includes('danger') || low.includes('warning') || low.includes('hazard') || low.includes('toxic') || low.includes('dont do this') || low.includes("don't do this")) return '⚠️';
+  if (low.includes('mindblown') || low.includes('mind-blowing') || low.includes('unbelievable') || low.includes('jaw-dropping')) return '🤯';
+  if (low.includes('champion') || low.includes('world record') || low.includes('gold medal') || low.includes('first place')) return '🏆';
+  if (low.includes('viral trend') || low.includes('hyped up')) return '🔥';
+  if (low.includes('top secret') || low.includes('nobody knows') || low.includes('confidential')) return '🤫';
+  
+  return ''; // Clean, legible text without unnecessary emojis
 }
 
 // --- Reset / New Project ---
@@ -425,14 +423,16 @@ stageVideo.ontimeupdate = () => {
       const chunkWords = words.slice(currentChunkIdx * chunkSize, (currentChunkIdx + 1) * chunkSize);
       displayChunk = chunkWords.join(' ');
       
-      // If it's the final chunk of the sentence, append contextual emoji
+      // If it's the final chunk of the sentence, check for rare contextual emoji
       if (currentChunkIdx === totalChunks - 1) {
         const emoji = getSentenceEndEmoji(rawClean);
-        displayChunk = displayChunk.replace(/[.!?,;]+$/, '') + ' ' + emoji;
+        const cleanChunk = displayChunk.replace(/[.!?,;]+$/, '');
+        displayChunk = emoji ? `${cleanChunk} ${emoji}` : cleanChunk;
       }
     } else {
       const emoji = getSentenceEndEmoji(rawClean);
-      displayChunk = displayChunk.replace(/[.!?,;]+$/, '') + ' ' + emoji;
+      const cleanChunk = displayChunk.replace(/[.!?,;]+$/, '');
+      displayChunk = emoji ? `${cleanChunk} ${emoji}` : cleanChunk;
     }
 
     $('liveSubOverlay').style.display = 'block';
@@ -642,7 +642,7 @@ async function exportClipById(clipId) {
     btn.disabled = true;
     btn.innerHTML = `<span class="pulse-dot"></span> Rendering…`;
   }
-  toast(`Forging ${activeRatio} MP4 with voice-matched subtitles & audio normalization! 🎬`);
+  toast(`Crafting ${activeRatio} MP4 with voice-matched subtitles & audio normalization! 🎬`);
 
   try {
     const res = await fetch('/api/render', {
@@ -814,7 +814,7 @@ function drawTranscript() {
   container.innerHTML = filtered.map((s, i) => {
     const cleanText = cleanSubtitleText(s.text);
     const emoji = getSentenceEndEmoji(cleanText);
-    const formatted = `${cleanText} ${emoji}`;
+    const formatted = emoji ? `${cleanText} ${emoji}` : cleanText;
 
     return `
       <div class="transcript-row" onclick="seekTranscript(${s.start})">
@@ -885,7 +885,8 @@ function exportSrtTranscript() {
     const b = formatTime(s.end) + ',000';
     const clean = cleanSubtitleText(s.text);
     const emoji = getSentenceEndEmoji(clean);
-    srtContent += `${idx + 1}\n00:${a} --> 00:${b}\n${clean} ${emoji}\n\n`;
+    const line = emoji ? `${clean} ${emoji}` : clean;
+    srtContent += `${idx + 1}\n00:${a} --> 00:${b}\n${line}\n\n`;
   });
 
   const blob = new Blob([srtContent], { type: 'text/plain;charset=utf-8' });
@@ -951,47 +952,47 @@ function applyLiveCaptionOverlayStyle() {
     white: '#ffffff'
   }[captionColor] || '#dfa067';
 
-  // Apply visual styling matching ffmpeg preset
+  // Apply visual styling matching ffmpeg preset with refined font sizes
   if (captionPreset === 'mrbeast') {
     el.style.fontFamily = 'Impact, -apple-system, sans-serif';
-    el.style.fontSize = '24px';
+    el.style.fontSize = '16px';
     el.style.color = colorHex;
-    el.style.textShadow = '-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000';
+    el.style.textShadow = '-1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000';
     el.style.background = 'transparent';
   } else if (captionPreset === 'tiktok') {
     el.style.fontFamily = 'Arial, -apple-system, sans-serif';
-    el.style.fontSize = '22px';
+    el.style.fontSize = '15px';
     el.style.fontWeight = '800';
     el.style.color = '#ffffff';
-    el.style.textShadow = '-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000';
+    el.style.textShadow = '-1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000';
     el.style.background = 'transparent';
   } else if (captionPreset === 'karaoke') {
     el.style.fontFamily = 'Arial, -apple-system, sans-serif';
-    el.style.fontSize = '22px';
+    el.style.fontSize = '15px';
     el.style.fontWeight = '800';
     el.style.color = '#e5ac74';
-    el.style.textShadow = '0 0 8px rgba(229,172,116,0.8), -1.5px -1.5px 0 #000, 1.5px 1.5px 0 #000';
+    el.style.textShadow = '0 0 6px rgba(229,172,116,0.8), -1px -1px 0 #000, 1px 1px 0 #000';
     el.style.background = 'transparent';
   } else if (captionPreset === 'cyber') {
     el.style.fontFamily = 'Trebuchet MS, -apple-system, sans-serif';
-    el.style.fontSize = '22px';
+    el.style.fontSize = '15px';
     el.style.fontWeight = '800';
     el.style.color = colorHex;
-    el.style.textShadow = '-2px -2px 0 #332211, 2px 2px 0 #000';
+    el.style.textShadow = '-1.5px -1.5px 0 #332211, 1.5px 1.5px 0 #000';
     el.style.background = 'transparent';
   } else if (captionPreset === 'clean') {
     el.style.fontFamily = 'Helvetica, -apple-system, sans-serif';
-    el.style.fontSize = '17px';
+    el.style.fontSize = '13px';
     el.style.fontWeight = '600';
     el.style.color = '#f7f2ea';
     el.style.textShadow = 'none';
     el.style.background = 'rgba(18, 14, 11, 0.85)';
   } else if (captionPreset === 'minimal') {
     el.style.fontFamily = 'Arial, -apple-system, sans-serif';
-    el.style.fontSize = '16px';
+    el.style.fontSize = '12px';
     el.style.fontWeight = '500';
     el.style.color = '#ded0bd';
-    el.style.textShadow = '1px 1px 4px rgba(0, 0, 0, 0.9)';
+    el.style.textShadow = '1px 1px 3px rgba(0, 0, 0, 0.9)';
     el.style.background = 'transparent';
   }
 }
