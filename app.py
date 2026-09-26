@@ -442,6 +442,91 @@ async def upload(file: UploadFile = File(...)):
         'formatted_duration': fmt_time(d)
     }
 
+def get_yt_dlp_options(download: bool = False, out_template: str = None) -> dict:
+    """Configures yt-dlp with mobile client emulation, custom headers, and cookie support to bypass datacenter bot-checks."""
+    opts = {
+        'quiet': False if download else True,
+        'no_warnings': False if download else True,
+        'noplaylist': True,
+        'js_runtimes': {'node': {}},
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios', 'web']
+            }
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+        }
+    }
+
+    # 1. Environment variable YOUTUBE_COOKIES or YT_COOKIES (for Vercel / Render / Cloud deployments)
+    yt_cookie_env = os.getenv('YOUTUBE_COOKIES') or os.getenv('YT_COOKIES')
+    if yt_cookie_env:
+        cookie_path = UP / 'yt_cookies.txt'
+        try:
+            raw_cookie = yt_cookie_env.strip()
+            # If base64 encoded, decode it
+            if not '\t' in raw_cookie and len(raw_cookie) > 60:
+                try:
+                    import base64
+                    decoded = base64.b64decode(raw_cookie).decode('utf-8', errors='ignore')
+                    if '# Netscape' in decoded or '\t' in decoded:
+                        raw_cookie = decoded
+                except Exception:
+                    pass
+            cookie_path.write_text(raw_cookie, encoding='utf-8')
+            opts['cookiefile'] = str(cookie_path)
+        except Exception as e:
+            print("Notice: Could not write YOUTUBE_COOKIES to file:", e)
+
+    # 2. Check for local cookies.txt in workspace root or data folder
+    if 'cookiefile' not in opts:
+        for p in [ROOT / 'cookies.txt', DATA / 'cookies.txt', UP / 'cookies.txt']:
+            if p.exists() and p.stat().st_size > 10:
+                opts['cookiefile'] = str(p)
+                break
+
+    # 3. Optional Proxy support (e.g. residential proxy on cloud)
+    proxy = os.getenv('YOUTUBE_PROXY') or os.getenv('HTTP_PROXY') or os.getenv('HTTPS_PROXY')
+    if proxy:
+        opts['proxy'] = proxy
+
+    if not download:
+        opts['skip_download'] = True
+    else:
+        opts['format'] = 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best'
+        opts['outtmpl'] = out_template
+        opts['merge_output_format'] = 'mp4'
+        opts['writesubtitles'] = True
+        opts['writeautomaticsub'] = True
+        opts['subtitleslangs'] = ['en', 'en-US', 'en-orig']
+        opts['subtitlesformat'] = 'vtt/srt'
+
+    return opts
+
+def handle_yt_dlp_error(err: Exception, context: str = 'Import') -> HTTPException:
+    msg = str(err)
+    print(f"yt-dlp {context} error: {msg}")
+    is_bot = any(x in msg.lower() for x in [
+        "sign in to confirm you're not a bot",
+        "confirm you're not a bot",
+        "bot verification",
+        "use --cookies",
+        "http error 429"
+    ])
+    if is_bot:
+        friendly = (
+            "YouTube Cloud Bot-Check Blocked: YouTube restricts video scraping from cloud datacenter IPs (Vercel/AWS). "
+            "Quick Fix: 1) Switch to the 'Upload File' tab to drop your video directly (0 restrictions, instant processing!), "
+            "or 2) Add a YOUTUBE_COOKIES environment variable in your Vercel Project Settings, "
+            "or 3) Run ClipCraft locally on your machine."
+        )
+        return HTTPException(400, detail=friendly)
+    if 'Unsupported URL' in msg:
+        return HTTPException(400, detail='Unsupported URL. Please enter a valid YouTube or video link.')
+    return HTTPException(400, detail=f'YouTube {context} Failed: {msg[-300:]}')
+
 class URLInspect(BaseModel):
     url: str
 
@@ -454,12 +539,7 @@ def inspect_url(x: URLInspect):
     
     try:
         import yt_dlp
-        ydl_opts = {
-            'quiet': True,
-            'skip_download': True,
-            'no_warnings': True,
-            'js_runtimes': {'node': {}}
-        }
+        ydl_opts = get_yt_dlp_options(download=False)
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             title = info.get('title', 'Unknown Title')
@@ -481,11 +561,10 @@ def inspect_url(x: URLInspect):
                 'has_subtitles': has_subs,
                 'url': url
             }
+    except HTTPException:
+        raise
     except Exception as e:
-        msg = str(e)
-        if 'Unsupported URL' in msg:
-            raise HTTPException(400, 'Unsupported URL. Please enter a valid YouTube or video link.')
-        raise HTTPException(400, f'Inspection failed: {msg[-300:]}')
+        raise handle_yt_dlp_error(e, context='Inspection')
 
 class URLIn(BaseModel):
     url: str
@@ -503,30 +582,17 @@ def import_url(x: URLIn):
     
     try:
         import yt_dlp
-        ydl_opts = {
-            'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',
-            'outtmpl': out_template,
-            'merge_output_format': 'mp4',
-            'writesubtitles': True,
-            'writeautomaticsub': True,
-            'subtitleslangs': ['en', 'en-US', 'en-orig'],
-            'subtitlesformat': 'vtt/srt',
-            'quiet': False,
-            'no_warnings': False,
-            'js_runtimes': {'node': {}},
-            'noplaylist': True
-        }
-        
+        ydl_opts = get_yt_dlp_options(download=True, out_template=out_template)
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             title = info.get('title') or 'Imported Video'
             uploader = info.get('uploader') or info.get('channel') or ''
             thumbnail = info.get('thumbnail') or ''
             
+    except HTTPException:
+        raise
     except Exception as e:
-        err_msg = str(e)
-        print("yt-dlp import error:", err_msg)
-        raise HTTPException(400, f'YouTube Import Failed: {err_msg[-400:]}')
+        raise handle_yt_dlp_error(e, context='Import')
 
     # Find the resulting mp4 or video file
     files = list(UP.glob(f'{pid}.mp4'))

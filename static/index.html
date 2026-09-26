@@ -104,6 +104,25 @@
               <span>🎬</span> Quick Test: Load Sample Zoo Video (With Captions)
             </button>
 
+            <!-- YouTube Cloud Protection Alert Card (Shows when cloud bot-check occurs) -->
+            <div class="yt-bot-card" id="ytBotAlert" style="display:none;">
+              <div class="yt-bot-header">
+                <span class="yt-bot-icon">🛡️</span>
+                <div class="yt-bot-titles">
+                  <h4>YouTube Cloud Bot-Check Active</h4>
+                  <p>YouTube blocks serverless cloud IPs (Vercel/AWS) from direct scraping.</p>
+                </div>
+              </div>
+              <div class="yt-bot-actions">
+                <button type="button" class="btn-primary" style="font-size:11px; padding:7px 10px; width:100%;" onclick="switchSourceTab('upload'); $('ytBotAlert').style.display='none';">
+                  📁 Switch to Upload File (Recommended • Instant)
+                </button>
+                <button type="button" class="btn-secondary" style="font-size:11px; padding:6px 10px; width:100%;" onclick="openCookieGuideModal()">
+                  🍪 Fix Cloud YouTube on Vercel
+                </button>
+              </div>
+            </div>
+
             <!-- YouTube Live Metadata Preview Card -->
             <div class="yt-preview-card" id="ytPreviewCard">
               <div class="yt-thumb-box">
@@ -539,6 +558,45 @@
     </section>
 
   </main>
+
+  <!-- Modal: Cloud YouTube & Vercel Setup Guide -->
+  <div class="modal-backdrop" id="cookieGuideModal" onclick="if(event.target===this) closeCookieGuideModal()">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3><span>🍪</span> Cloud YouTube Authentication Guide</h3>
+        <button class="modal-close-btn" onclick="closeCookieGuideModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-step" style="border-left: 3px solid #e6b980;">
+          <h5>⚡ Method 1: Instant Fix (No Setup Required)</h5>
+          <p>Switch to the <strong>Upload File</strong> tab right in the studio. Drop any MP4 or MOV file directly from your computer. Video upload runs locally or directly to your server with 0 bot checks and full Whisper AI speed!</p>
+          <button class="btn-primary" style="margin-top:8px; font-size:11px; padding:6px 12px;" onclick="closeCookieGuideModal(); switchSourceTab('upload');">Switch to Upload File Now</button>
+        </div>
+
+        <div class="modal-step">
+          <h5>🌐 Method 2: Authenticate YouTube on Vercel</h5>
+          <p>YouTube blocks requests from cloud datacenter IP ranges (AWS/Vercel). You can bypass this permanently with your YouTube session cookies:</p>
+          <ol style="padding-left:18px; margin:8px 0; color:var(--beige-cream);">
+            <li>Install the Chrome/Edge extension <strong>"Get cookies.txt LOCALLY"</strong>.</li>
+            <li>Go to <a href="https://www.youtube.com" target="_blank" style="color:var(--accent-light);">youtube.com</a> (make sure you are logged in).</li>
+            <li>Click the extension and click <strong>Export</strong> (Netscape format).</li>
+            <li>Go to your <strong>Vercel Project Dashboard</strong> &rarr; <strong>Settings</strong> &rarr; <strong>Environment Variables</strong>.</li>
+            <li>Add a new variable:
+              <div class="modal-code-block">Key: YOUTUBE_COOKIES<br>Value: [Paste exported cookies text here]</div>
+            </li>
+            <li>Redeploy your Vercel project! All YouTube downloads will now authenticate seamlessly.</li>
+          </ol>
+        </div>
+
+        <div class="modal-step">
+          <h5>💻 Method 3: Run ClipCraft Locally</h5>
+          <p>Residential home internet IPs are <strong>never blocked</strong> by YouTube. You can run ClipCraft on your laptop/desktop anytime:</p>
+          <div class="modal-code-block">git clone https://github.com/Chakritha11/ClipCraft.git<br>cd ClipCraft<br>pip install -r requirements.txt<br>python app.py</div>
+          <p style="margin-top:6px; color:var(--beige-taupe); font-size:11px;">Open <strong>http://localhost:8000</strong> in your browser for unrestricted local video clipping with GPU support!</p>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Interactive Toast Notification -->
   <div id="toast">

@@ -200,6 +200,8 @@ function hidePipeline() {
 $('ytUrlInput').addEventListener('input', e => {
   const url = e.target.value.trim();
   clearTimeout(ytInspectTimeout);
+  const botAlert = $('ytBotAlert');
+  if (botAlert) botAlert.style.display = 'none';
   if (!url || (!url.includes('youtube.com') && !url.includes('youtu.be') && !url.startsWith('http'))) {
     $('ytPreviewCard').classList.remove('show');
     return;
@@ -214,9 +216,17 @@ async function inspectYouTubeUrl(url) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url })
     });
-    if (!res.ok) return;
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (data.detail && (data.detail.toLowerCase().includes('bot') || data.detail.toLowerCase().includes('cloud'))) {
+        const botAlert = $('ytBotAlert');
+        if (botAlert) botAlert.style.display = 'flex';
+      }
+      return;
+    }
     if (data.success) {
+      const botAlert = $('ytBotAlert');
+      if (botAlert) botAlert.style.display = 'none';
       $('ytPreviewThumb').src = data.thumbnail || '';
       $('ytPreviewTitle').textContent = data.title || 'YouTube Video';
       $('ytPreviewChannel').textContent = `${data.uploader || 'Creator'} • ${data.formatted_duration || ''}`;
@@ -255,6 +265,9 @@ async function importYouTubeUrl() {
       throw new Error(data.detail || 'Import failed');
     }
 
+    const botAlert = $('ytBotAlert');
+    if (botAlert) botAlert.style.display = 'none';
+
     showPipeline('Merging streams & processing subtitles…', 'Step 2/3', 75);
     project = data;
     loadProjectIntoStudio(data);
@@ -270,12 +283,34 @@ async function importYouTubeUrl() {
 
   } catch (err) {
     hidePipeline();
-    toast(err.message, '❌');
+    const isBot = err.message && (
+      err.message.toLowerCase().includes('bot') || 
+      err.message.toLowerCase().includes('cloud') || 
+      err.message.toLowerCase().includes('cookie')
+    );
+    if (isBot) {
+      const botAlert = $('ytBotAlert');
+      if (botAlert) botAlert.style.display = 'flex';
+      toast('YouTube Cloud Protection: Use Upload File or add cookies', '🛡️');
+    } else {
+      toast(err.message, '❌');
+    }
   } finally {
     importBtn.disabled = false;
     importText.textContent = 'Import';
   }
 }
+
+// --- Modal Dialog Helpers ---
+function openCookieGuideModal() {
+  const modal = $('cookieGuideModal');
+  if (modal) modal.classList.add('show');
+}
+function closeCookieGuideModal() {
+  const modal = $('cookieGuideModal');
+  if (modal) modal.classList.remove('show');
+}
+
 
 // --- Quick Sample Video Loader ---
 async function quickLoadSampleVideo() {

@@ -26,3 +26,10 @@ pip install -r requirements.txt
 python app.py
 ```
 Open **http://127.0.0.1:8000** in your browser.
+
+## ☁️ Cloud Deployment & YouTube Bot-Check Solutions
+When deploying to cloud platforms (Vercel, Render, Railway, AWS):
+- **Bot Check Issue**: YouTube flags requests from cloud datacenter IPs.
+- **Solution 1 (Instant)**: Switch to the **Upload File** tab to drop your video directly with 0 restrictions.
+- **Solution 2 (Cookies)**: Provide your session cookies via the `YOUTUBE_COOKIES` environment variable or a local `cookies.txt` file.
+- See [`DEPLOY_GUIDE.md`](DEPLOY_GUIDE.md) for complete step-by-step instructions.
