@@ -1,0 +1,25 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Data and runtime media (keep dirs with .gitkeep)
+data/uploads/*
+!data/uploads/.gitkeep
+data/outputs/*
+!data/outputs/.gitkeep
+data/projects.json
+
+# IDE and OS files
+.vscode/
+.idea/
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+*.log

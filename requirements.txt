@@ -1,0 +1,7 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+pydantic==2.10.4
+yt-dlp>=2025.1.15
+faster-whisper>=1.1.1
+static-ffmpeg>=3.0

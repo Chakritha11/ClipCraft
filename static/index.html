@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ClipCraft Studio • AI Short-Form Video Suite</title>
+  <meta name="description" content="Local-first AI clipping studio. Transform long videos and YouTube links into viral 9:16 Shorts, Reels, and TikToks with styled captions and smart hooks.">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <!-- Top App Navigation -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand-wrapper">
+        <div class="brand-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+        </div>
+        <div class="brand-title">
+          ClipCraft <span class="brand-badge">PRO SUITE</span>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <div class="engine-pill" id="engineStatus">
+          <span class="pulse-dot"></span>
+          <span id="engineStatusText">Local AI Engine • Active</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button class="btn-secondary" id="btnNewProject" onclick="resetNewProject()" title="Start a fresh clipping project">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          New Project
+        </button>
+        <button class="btn-secondary btn-batch-export" id="btnBatchExportHeader" onclick="batchExportAllClips()" title="Render all detected viral clips in batch">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+          </svg>
+          Batch Export All
+        </button>
+        <button class="btn-secondary" onclick="switchWorkTab('historyTabBtn', 'historyPanel')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Vault <span id="exportBadgeCount" style="margin-left:4px; font-size:11px; color:var(--accent-light);">(0)</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Studio Workspace -->
+  <main class="studio-layout">
+    
+    <!-- Left Creator Dock (Inputs, Inspector, Recipe) -->
+    <aside class="creator-dock">
+      
+      <!-- Card 1: Source Selector -->
+      <div class="dock-card">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="step-num">01</span> Media Source
+          </div>
+        </div>
+
+        <!-- Source Tabs -->
+        <div class="source-tabs">
+          <button class="tab-btn active" id="tabYtBtn" onclick="switchSourceTab('yt')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"></path>
+              <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon>
+            </svg>
+            YouTube / Video URL
+          </button>
+          <button class="tab-btn" id="tabUploadBtn" onclick="switchSourceTab('upload')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            Upload File
+          </button>
+        </div>
+
+        <!-- Panel 1: YouTube Import -->
+        <div class="source-panel active" id="sourcePanelYt">
+          <div class="url-input-group">
+            <div class="input-with-button">
+              <input type="text" class="studio-input" id="ytUrlInput" placeholder="Paste YouTube, Shorts, or Video link..." autocomplete="off">
+              <button class="btn-primary" id="btnImportYt" onclick="importYouTubeUrl()">
+                <span id="importBtnText">Import</span>
+              </button>
+            </div>
+
+            <!-- YouTube Live Metadata Preview Card -->
+            <div class="yt-preview-card" id="ytPreviewCard">
+              <div class="yt-thumb-box">
+                <img id="ytPreviewThumb" src="" alt="Thumbnail">
+                <span class="yt-dur-pill" id="ytPreviewDur">0:00</span>
+              </div>
+              <div class="yt-info-col">
+                <h4 id="ytPreviewTitle">Video Title</h4>
+                <span id="ytPreviewChannel">Channel Name</span>
+                <span class="yt-native-sub-badge" id="ytSubBadge">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  Native Captions Detected
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel 2: File Upload Dropzone -->
+        <div class="source-panel" id="sourcePanelUpload">
+          <label class="dropzone" id="dropArea">
+            <input type="file" id="fileInput" accept="video/mp4,video/quicktime,video/webm,video/x-matroska">
+            <div class="drop-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path>
+                <path d="M12 12v9"></path>
+                <path d="m16 16-4-4-4 4"></path>
+              </svg>
+            </div>
+            <div class="drop-title">Drop video file here or Browse</div>
+            <div class="drop-subtitle">MP4, MOV, WEBM (up to 4K resolution)</div>
+          </label>
+        </div>
+
+        <!-- Creator Watermark Handle Option -->
+        <div style="margin-top:14px;">
+          <div class="control-label" style="margin-bottom:6px;">
+            <span>Creator Handle / Watermark</span>
+            <span style="font-size:10px; color:var(--beige-taupe);">(Optional)</span>
+          </div>
+          <input type="text" class="studio-input" id="watermarkInput" placeholder="@yourchannel" oninput="updateLiveWatermark(this.value)">
+        </div>
+      </div>
+
+      <!-- Card 2: AI Clipping Recipe -->
+      <div class="dock-card">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="step-num">02</span> Clipping Recipe
+          </div>
+        </div>
+
+        <div class="recipe-section">
+          <!-- Target Duration -->
+          <div class="control-group">
+            <div class="control-label">
+              <span>Target Clip Length</span>
+              <span class="control-badge" id="durValBadge">45 sec</span>
+            </div>
+            <input type="range" class="slider-styled" id="clipDurSlider" min="15" max="90" value="45" oninput="onDurSliderChange(this.value)">
+          </div>
+
+          <!-- Number of Clips -->
+          <div class="control-group">
+            <div class="control-label">
+              <span>How Many Clips?</span>
+            </div>
+            <div class="pill-selector" id="clipCountPills">
+              <button class="pill-btn" onclick="selectClipCount(3, this)">3 Clips</button>
+              <button class="pill-btn active" onclick="selectClipCount(6, this)">6 Clips</button>
+              <button class="pill-btn" onclick="selectClipCount(10, this)">10 Clips</button>
+            </div>
+          </div>
+
+          <!-- Whisper Model Precision -->
+          <div class="control-group">
+            <div class="control-label">
+              <span>Speech Recognition Engine</span>
+            </div>
+            <select class="select-styled" id="whisperModelSelect">
+              <option value="tiny" selected>⚡ Tiny (~2 sec) • Blazing Fast</option>
+              <option value="base">🎯 Base (~6 sec) • Balanced</option>
+              <option value="small">🧠 Small (~15 sec) • Studio Precision</option>
+            </select>
+          </div>
+
+          <!-- Main Magic Moments Trigger -->
+          <button class="btn-craft-magic" id="btnAnalyze" onclick="startAIAnalysis()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path>
+            </svg>
+            CRAFT VIRAL CLIPS
+          </button>
+        </div>
+
+        <!-- Pipeline Progress Box -->
+        <div class="pipeline-progress-card" id="pipelineProgressCard">
+          <div class="pipeline-header">
+            <span class="pipeline-title" id="pipelineStatusText">
+              <span class="pulse-dot"></span> Processing Media...
+            </span>
+            <span class="control-badge" id="pipelineStepBadge">Step 1/3</span>
+          </div>
+          <div class="pipeline-bar-outer">
+            <div class="pipeline-bar-inner" id="pipelineBar"></div>
+          </div>
+        </div>
+      </div>
+      
+    </aside>
+
+    <!-- Right Studio Monitor & Multi-Track Viewport -->
+    <section class="studio-viewport">
+      
+      <!-- Top Meta Specs & Ratio Selector -->
+      <div class="viewport-topbar">
+        <div class="active-video-meta">
+          <div class="video-status-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+              <line x1="7" y1="2" x2="7" y2="22"></line>
+              <line x1="17" y1="2" x2="17" y2="22"></line>
+              <line x1="2" y1="12" x2="22" y2="12"></line>
+              <line x1="2" y1="7" x2="7" y2="7"></line>
+              <line x1="2" y1="17" x2="7" y2="17"></line>
+              <line x1="17" y1="17" x2="22" y2="17"></line>
+              <line x1="17" y1="7" x2="22" y2="7"></line>
+            </svg>
+          </div>
+          <div class="meta-texts">
+            <div class="meta-filename" id="topVideoTitle">No video loaded</div>
+            <div class="meta-specs" id="topVideoSpecs">Import a YouTube link or drop a video on the left</div>
+          </div>
+        </div>
+
+        <!-- Aspect Ratio Controls -->
+        <div class="aspect-ratio-selector">
+          <button class="ratio-btn active" id="ratio916Btn" onclick="setAspectRatio('9:16', this)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"></rect></svg>
+            9:16 Shorts
+          </button>
+          <button class="ratio-btn" id="ratio45Btn" onclick="setAspectRatio('4:5', this)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"></rect></svg>
+            4:5 Portrait
+          </button>
+          <button class="ratio-btn" id="ratio11Btn" onclick="setAspectRatio('1:1', this)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect></svg>
+            1:1 Square
+          </button>
+          <button class="ratio-btn" id="ratio169Btn" onclick="setAspectRatio('16:9', this)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"></rect></svg>
+            16:9 Cinema
+          </button>
+        </div>
+      </div>
+
+      <!-- Studio Stage / Live Player Container -->
+      <div class="stage-container">
+        
+        <!-- Phone Bezel Frame -->
+        <div class="stage-phone-bezel" id="stageBezel">
+          <div class="dynamic-island" id="dynamicIsland"></div>
+
+          <!-- Live Top Hook Banner -->
+          <div class="live-hook-banner" id="liveHookBanner">
+            <span class="live-hook-text" id="liveHookBannerText">WAIT FOR IT...</span>
+          </div>
+
+          <!-- Live Watermark Overlay -->
+          <div class="live-watermark-overlay" id="liveWatermarkOverlay" style="display:none;"></div>
+
+          <!-- Video Element -->
+          <video id="stageVideo" playsinline preload="auto"></video>
+
+          <!-- Live Subtitle Overlay -->
+          <div class="live-subtitle-overlay" id="liveSubOverlay">
+            <span class="live-subtitle-text" id="liveSubText"></span>
+          </div>
+
+          <!-- Empty State -->
+          <div class="stage-empty-state" id="stageEmpty">
+            <div class="empty-graphic">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+            </div>
+            <div class="empty-title">Studio Stage Ready</div>
+            <div class="empty-desc">Drop a video file or paste any YouTube link on the left to start clipping.</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Interactive Playback Controls Bar -->
+      <div class="stage-controls-bar">
+        <div class="playback-buttons">
+          <button class="btn-icon" onclick="skipVideo(-5)" title="Rewind 5s">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m11 17-5-5 5-5"></path><path d="m18 17-5-5 5-5"></path></svg>
+          </button>
+          <button class="btn-icon btn-play-pause" id="btnPlayPause" onclick="togglePlayPause()" title="Play / Pause">
+            <svg id="playIcon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
+            <svg id="pauseIcon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+          </button>
+          <button class="btn-icon" onclick="skipVideo(5)" title="Forward 5s">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 17 5-5-5-5"></path><path d="m13 17 5-5-5-5"></path></svg>
+          </button>
+        </div>
+
+        <!-- Scrubber Bar -->
+        <div class="timeline-scrub-bar">
+          <input type="range" class="slider-styled" id="videoScrubber" min="0" max="100" value="0" step="0.1" oninput="onScrubVideo(this.value)">
+        </div>
+
+        <div class="timecode-display">
+          <span class="active" id="curTimecode">00:00</span>
+          <span>/</span>
+          <span id="totTimecode">00:00</span>
+        </div>
+
+        <select class="select-styled" id="playbackSpeedSelect" onchange="setPlaybackSpeed(this.value)" style="margin-left: 14px; padding: 5px 8px;">
+          <option value="1.0" selected>1.0x</option>
+          <option value="1.25">1.25x</option>
+          <option value="1.5">1.5x</option>
+          <option value="2.0">2.0x</option>
+        </select>
+      </div>
+
+      <!-- Workspace Control Tabs -->
+      <div class="workspace-tabs-container">
+        <nav class="workspace-nav-tabs">
+          <button class="work-tab-btn active" id="clipsTabBtn" onclick="switchWorkTab('clipsTabBtn', 'clipsPanel')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+            🔥 Smart Clips <span class="control-badge" id="clipCounterBadge" style="margin-left:4px;">0</span>
+          </button>
+          <button class="work-tab-btn" id="transcriptTabBtn" onclick="switchWorkTab('transcriptTabBtn', 'transcriptPanel')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            Interactive Transcript
+          </button>
+          <button class="work-tab-btn" id="captionLabTabBtn" onclick="switchWorkTab('captionLabTabBtn', 'captionLabPanel')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3"></path><path d="M9 20h6"></path><path d="M12 4v16"></path></svg>
+            Caption Studio Lab
+          </button>
+          <button class="work-tab-btn" id="historyTabBtn" onclick="switchWorkTab('historyTabBtn', 'historyPanel')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Export Vault
+          </button>
+        </nav>
+
+        <!-- Panel 1: Smart Clips -->
+        <div class="work-panel active" id="clipsPanel">
+          <div class="clips-panel-toolbar" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--border-subtle);">
+            <div style="font-size:13px; font-weight:700; color:var(--beige-cream); display:flex; align-items:center; gap:8px;">
+              <span>Ranked by Popularity Score</span>
+              <span class="control-badge" style="background:#2e2216; color:var(--accent-light); font-size:11px;">⚡ More Popular → Less</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:11px; color:var(--beige-taupe);">Sort by:</span>
+              <select class="select-styled" id="clipSortSelect" onchange="onClipSortChange(this.value)" style="padding:4px 10px; font-size:11px;">
+                <option value="popularity" selected>🔥 Popularity Score (High to Low)</option>
+                <option value="chrono">🎬 Chronological Timeline</option>
+                <option value="duration">⏱ Longest Duration</option>
+              </select>
+            </div>
+          </div>
+          <div class="clips-grid" id="clipsListContainer">
+            <div class="stage-empty-state" style="position:static; padding:40px;">
+              <div class="empty-graphic">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+              </div>
+              <div class="empty-title">Ready for Your First Video</div>
+              <div class="empty-desc">Import any YouTube link or drop a video to extract viral clips and voice-matched captions automatically.</div>
+            </div>
+          </div>
+        </div>
+
+
+        <!-- Panel 2: Interactive Transcript -->
+        <div class="work-panel" id="transcriptPanel">
+          <div class="transcript-search-bar">
+            <input type="text" class="studio-input" id="transcriptSearchInput" placeholder="⌕ Search words, concepts, or timestamps..." oninput="filterTranscriptList()">
+            <button class="btn-secondary" onclick="exportSrtTranscript()">Export SRT</button>
+          </div>
+          <div class="transcript-list" id="transcriptContainer">
+            <div class="stage-empty-state" style="position:static; padding:30px;">
+              <div class="empty-desc">No transcript loaded. Import a video to inspect timestamps.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel 3: Caption Studio Lab -->
+        <div class="work-panel" id="captionLabPanel">
+          <div class="caption-studio-grid">
+            
+            <!-- Left: Style Presets -->
+            <div class="control-group">
+              <div class="control-label">
+                <span>Select Caption Personality</span>
+                <span class="control-badge" id="activeStyleLabel">GOLDEN HYPE</span>
+              </div>
+              
+              <div class="style-presets-list" id="stylePresetsContainer">
+                
+                <div class="style-card active" onclick="setCaptionStyle('mrbeast', this)">
+                  <div class="style-name">🌟 Golden Hype</div>
+                  <div class="style-preview-box">
+                    <span class="preview-mrbeast">BOLD REVEAL!</span>
+                  </div>
+                </div>
+
+                <div class="style-card" onclick="setCaptionStyle('tiktok', this)">
+                  <div class="style-name">⚡ TikTok Punch</div>
+                  <div class="style-preview-box">
+                    <span class="preview-tiktok">PUNCHY BOLD</span>
+                  </div>
+                </div>
+
+                <div class="style-card" onclick="setCaptionStyle('karaoke', this)">
+                  <div class="style-name">🎵 Amber Glow</div>
+                  <div class="style-preview-box">
+                    <span class="preview-karaoke">WARM RUNNER</span>
+                  </div>
+                </div>
+
+                <div class="style-card" onclick="setCaptionStyle('cyber', this)">
+                  <div class="style-name">☕ Caramel Edge</div>
+                  <div class="style-preview-box">
+                    <span class="preview-cyber">WARM SHADOW</span>
+                  </div>
+                </div>
+
+                <div class="style-card" onclick="setCaptionStyle('clean', this)">
+                  <div class="style-name">💎 Oatmeal Pill</div>
+                  <div class="style-preview-box">
+                    <span class="preview-clean">Espresso Translucent</span>
+                  </div>
+                </div>
+
+                <div class="style-card" onclick="setCaptionStyle('minimal', this)">
+                  <div class="style-name">📰 Editorial Minimal</div>
+                  <div class="style-preview-box">
+                    <span class="preview-minimal">Subtle Lower Third</span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- Right: Color, Position, & Hook Banner Controls -->
+            <div style="display:flex; flex-direction:column; gap:18px;">
+              
+              <!-- Color Selector -->
+              <div class="control-group">
+                <div class="control-label">
+                  <span>Highlight Accent Color</span>
+                </div>
+                <div class="color-swatches">
+                  <div class="color-dot active" style="background:#dfa067;" onclick="setCaptionColor('gold', this)" title="Warm Gold"></div>
+                  <div class="color-dot" style="background:#f7f2ea;" onclick="setCaptionColor('cream', this)" title="Oatmeal Cream"></div>
+                  <div class="color-dot" style="background:#c58f58;" onclick="setCaptionColor('caramel', this)" title="Caramel Amber"></div>
+                  <div class="color-dot" style="background:#84a98c;" onclick="setCaptionColor('green', this)" title="Sage Olive"></div>
+                  <div class="color-dot" style="background:#ffffff;" onclick="setCaptionColor('white', this)" title="Pure White"></div>
+                </div>
+              </div>
+
+              <!-- Subtitle Position -->
+              <div class="control-group">
+                <div class="control-label">
+                  <span>Vertical Position</span>
+                </div>
+                <div class="pill-selector">
+                  <button class="pill-btn active" onclick="setCaptionPosition('bottom', this)">Bottom (Default)</button>
+                  <button class="pill-btn" onclick="setCaptionPosition('center', this)">Eye-Level (Middle)</button>
+                  <button class="pill-btn" onclick="setCaptionPosition('top', this)">Top Header</button>
+                </div>
+              </div>
+
+              <!-- Top Hook Banner Customizer -->
+              <div class="control-group">
+                <div class="control-label">
+                  <span>Viral Hook Header Banner</span>
+                  <input type="checkbox" id="toggleHookBanner" checked onchange="toggleHookBannerDisplay(this.checked)">
+                </div>
+                <input type="text" class="studio-input" id="hookCustomTextInput" value="WAIT TILL YOU SEE THIS 😱" placeholder="Top banner text (shown first 3.5s)" oninput="updateLiveHookBanner(this.value)">
+              </div>
+
+              <!-- Caption Burning Toggle -->
+              <div class="control-group" style="padding:10px 0;">
+                <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; cursor:pointer;">
+                  <input type="checkbox" id="burnCaptionsCheck" checked style="accent-color:var(--accent-primary); width:16px; height:16px;">
+                  <span>Burn captions permanently into MP4 exports</span>
+                </label>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Panel 4: Export History Vault -->
+        <div class="work-panel" id="historyPanel">
+          <div class="rendered-history-grid" id="historyClipsContainer">
+            <div class="stage-empty-state" style="position:static; padding:40px; grid-column:1/-1;">
+              <div class="empty-graphic">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              </div>
+              <div class="empty-title">Export Vault Empty</div>
+              <div class="empty-desc">Rendered clips will appear here with direct download links and video previews.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Interactive Toast Notification -->
+  <div id="toast">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-light)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+    <span id="toastMsg">Ready</span>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
