@@ -57,10 +57,12 @@ def srt_time(t):
 import html
 
 def clean_subtitle_text(txt: str) -> str:
-    """Removes HTML tags, music brackets, noise markers, and unnecessary symbols."""
+    """Removes zero-width characters, HTML tags, music brackets, noise markers, and unnecessary symbols."""
     if not txt:
         return ""
     txt = html.unescape(txt)
+    # Strip zero-width & non-standard whitespace chars (YouTube VTT artifacts)
+    txt = re.sub(r'[\u200b\u200c\u200d\u200e\u200f\ufeff\u00a0]+', ' ', txt)
     txt = re.sub(r'<[^>]+>', '', txt)
     txt = re.sub(r'\[(?:Music|Applause|Laughter|Cheering|Audio|Sound|Silence|Noise|Snicker|Giggle|Sigh)[^\]]*\]', '', txt, flags=re.IGNORECASE)
     txt = re.sub(r'\((?:Music|Applause|Laughter|Cheering|Audio|Sound|Silence|Noise)[^\)]*\)', '', txt, flags=re.IGNORECASE)
@@ -102,7 +104,7 @@ def get_sentence_end_emoji(sentence: str) -> str:
 def generate_voice_matched_subtitles(segs, clip_start, clip_end, out_srt_path, custom_text=""):
     """
     Generates clean, voice-matched subtitles with natural 3-5 word speech chunks.
-    Only rare high-impact moments get an emoji; no unnecessary emojis are forced.
+    Ensures sequential, non-overlapping timestamps and zero zero-width characters.
     """
     entries = []
     
@@ -121,7 +123,7 @@ def generate_voice_matched_subtitles(segs, clip_start, clip_end, out_srt_path, c
             seg_end = min(clip_end - clip_start, s['end'] - clip_start)
             seg_dur = max(0.4, seg_end - seg_start)
             
-            # Check if exact word-level timestamps are provided
+            # Check if exact word-level timestamps are provided (from Whisper)
             words_data = s.get('words')
             if words_data and len(words_data) > 0:
                 rel_words = [
@@ -135,31 +137,30 @@ def generate_voice_matched_subtitles(segs, clip_start, clip_end, out_srt_path, c
                         c_start = max(0.0, chunk[0]['start'] - clip_start)
                         c_end = min(clip_end - clip_start, chunk[-1]['end'] - clip_start)
                         if c_end <= c_start:
-                            c_end = c_start + 0.5
+                            c_end = c_start + 0.4
                         chunk_text = ' '.join(w['word'] for w in chunk).strip()
-                        c_clean = re.sub(r'[.!?,;]+$', '', chunk_text).strip()
+                        c_clean = re.sub(r'[.!?,;]+$', '', clean_subtitle_text(chunk_text)).strip()
                         if c_idx == len(word_chunks) - 1:
                             emoji = get_sentence_end_emoji(raw_text)
                             line = f"{c_clean} {emoji}".strip() if emoji else c_clean
                         else:
                             line = c_clean
                         if line:
-                            entries.append((c_start, c_end, line))
+                            entries.append((round(c_start, 2), round(c_end, 2), line))
                     continue
 
             # Fallback when word-level timestamps are not present:
             words = raw_text.split()
-            if len(words) <= 5 or seg_dur <= 2.0:
+            if len(words) <= 5 or seg_dur <= 2.2:
                 emoji = get_sentence_end_emoji(raw_text)
                 clean_sentence = re.sub(r'[.!?,;]+$', '', raw_text).strip()
                 line = f"{clean_sentence} {emoji}".strip() if emoji else clean_sentence
-                entries.append((seg_start, seg_end, line))
+                if line:
+                    entries.append((round(seg_start, 2), round(seg_end, 2), line))
             else:
                 chunk_size = 4
                 word_chunks = [words[i:i + chunk_size] for i in range(0, len(words), chunk_size)]
                 num_chunks = len(word_chunks)
-                
-                # Weight duration by character length of each chunk for voice cadence
                 chunk_weights = [sum(max(2, len(w)) for w in chunk) for chunk in word_chunks]
                 total_weight = max(1, sum(chunk_weights))
                 
@@ -177,60 +178,79 @@ def generate_voice_matched_subtitles(segs, clip_start, clip_end, out_srt_path, c
                         line = c_clean
                         
                     if line:
-                        entries.append((cur_start, c_end, line))
+                        entries.append((round(cur_start, 2), round(c_end, 2), line))
                     cur_start = c_end
                         
+    # Post-process entries: Sort and strictly prevent overlapping or stacked timestamps
+    cleaned_entries = []
+    for s_start, s_end, text in sorted(entries, key=lambda e: e[0]):
+        text = clean_subtitle_text(text)
+        if not text:
+            continue
+        s_start = max(0.0, s_start)
+        s_end = max(s_start + 0.35, s_end)
+        
+        if cleaned_entries:
+            prev_start, prev_end, prev_text = cleaned_entries[-1]
+            if prev_text.lower() == text.lower():
+                cleaned_entries[-1] = (prev_start, max(prev_end, s_end), prev_text)
+                continue
+            if s_start < prev_end:
+                # Cap previous end so subtitles don't collide or stack
+                cleaned_entries[-1] = (prev_start, s_start, prev_text)
+        cleaned_entries.append((s_start, s_end, text))
+
+    out_srt_path.parent.mkdir(parents=True, exist_ok=True)
     with out_srt_path.open('w', encoding='utf-8') as f:
-        for idx, (a, b, txt) in enumerate(entries, 1):
+        for idx, (a, b, txt) in enumerate(cleaned_entries, 1):
+            if b <= a:
+                b = a + 0.35
             f.write(f"{idx}\n{srt_time(a)} --> {srt_time(b)}\n{txt}\n\n")
 
 def parse_vtt_or_srt(sub_path: Path):
-    """Parse downloaded VTT or SRT subtitle file into clean standard segments."""
+    """Parse downloaded VTT or SRT subtitle file into clean, deduplicated, sequential segments."""
     if not sub_path.exists():
         return []
     lines = sub_path.read_text(encoding='utf-8', errors='ignore').splitlines()
-    segments = []
+    raw_cues = []
     time_pat = re.compile(r'(\d{2}):(\d{2}):(\d{2})[,\.](\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})[,\.](\d{3})')
     time_pat_short = re.compile(r'(\d{2}):(\d{2})[,\.](\d{3})\s*-->\s*(\d{2}):(\d{2})[,\.](\d{3})')
     
+    def to_secs(h, m, s, ms):
+        return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000.0
+
     current_start = None
     current_end = None
     current_text = []
 
-    def to_secs(h, m, s, ms):
-        return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000.0
+    def flush_cue():
+        nonlocal current_start, current_end, current_text
+        if current_start is not None and current_text:
+            txt = clean_subtitle_text(' '.join(current_text))
+            if txt and current_end > current_start:
+                raw_cues.append({'start': round(current_start, 2), 'end': round(current_end, 2), 'text': txt})
+        current_start = None
+        current_end = None
+        current_text = []
 
     for line in lines:
         line = line.strip()
         if not line or line.startswith('WEBVTT') or line.startswith('NOTE') or line.isdigit():
-            if current_start is not None and current_text:
-                txt = clean_subtitle_text(' '.join(current_text))
-                if txt and (not segments or segments[-1]['text'] != txt):
-                    segments.append({'start': round(current_start, 2), 'end': round(current_end, 2), 'text': txt})
-                current_start = None
-                current_text = []
+            flush_cue()
             continue
             
         m = time_pat.search(line)
         if m:
-            if current_start is not None and current_text:
-                txt = clean_subtitle_text(' '.join(current_text))
-                if txt and (not segments or segments[-1]['text'] != txt):
-                    segments.append({'start': round(current_start, 2), 'end': round(current_end, 2), 'text': txt})
+            flush_cue()
             current_start = to_secs(m.group(1), m.group(2), m.group(3), m.group(4))
             current_end = to_secs(m.group(5), m.group(6), m.group(7), m.group(8))
-            current_text = []
             continue
             
         m2 = time_pat_short.search(line)
         if m2:
-            if current_start is not None and current_text:
-                txt = clean_subtitle_text(' '.join(current_text))
-                if txt and (not segments or segments[-1]['text'] != txt):
-                    segments.append({'start': round(current_start, 2), 'end': round(current_end, 2), 'text': txt})
+            flush_cue()
             current_start = to_secs(0, m2.group(1), m2.group(2), m2.group(3))
             current_end = to_secs(0, m2.group(4), m2.group(5), m2.group(6))
-            current_text = []
             continue
 
         if current_start is not None:
@@ -238,12 +258,56 @@ def parse_vtt_or_srt(sub_path: Path):
             if clean:
                 current_text.append(clean)
 
-    if current_start is not None and current_text:
-        txt = clean_subtitle_text(' '.join(current_text))
-        if txt and (not segments or segments[-1]['text'] != txt):
-            segments.append({'start': round(current_start, 2), 'end': round(current_end, 2), 'text': txt})
+    flush_cue()
 
-    return segments
+    if not raw_cues:
+        return []
+
+    # Deduplicate and resolve overlapping timestamps
+    merged = []
+    for cue in raw_cues:
+        if not merged:
+            merged.append(cue)
+            continue
+
+        last = merged[-1]
+        c_txt = cue['text']
+        l_txt = last['text']
+
+        # Exact or near-identical duplicate text (case-insensitive)
+        if c_txt.lower() == l_txt.lower():
+            last['end'] = max(last['end'], cue['end'])
+            continue
+
+        # If cue starts at or before last cue
+        if cue['start'] < last['end']:
+            # If current is prefix/suffix extension of last
+            if c_txt.lower().startswith(l_txt.lower()) or l_txt.lower().endswith(c_txt.lower()):
+                last['text'] = c_txt if len(c_txt) > len(l_txt) else l_txt
+                last['end'] = max(last['end'], cue['end'])
+                continue
+            # If current cue overlaps slightly, adjust last['end']
+            if cue['end'] > last['end']:
+                last['end'] = round(cue['start'], 2)
+                if last['end'] <= last['start']:
+                    last['end'] = round(last['start'] + 0.4, 2)
+                    cue['start'] = last['end']
+            else:
+                # Completely enveloped duplicate/sub-cue
+                continue
+
+        # Ensure minimal readable duration
+        if cue['end'] <= cue['start']:
+            cue['end'] = round(cue['start'] + 0.5, 2)
+
+        merged.append(cue)
+
+    # Final pass: smooth gaps < 0.25s for natural voice continuity
+    for i in range(len(merged) - 1):
+        if 0 < merged[i+1]['start'] - merged[i]['end'] < 0.25:
+            merged[i]['end'] = merged[i+1]['start']
+
+    return merged
 
 def make_candidates(segs, target=45, count=6):
     """Virality and popularity heuristic discovery engine, strictly sorted descending by popularity."""
@@ -567,6 +631,14 @@ def analyze(x: Analyze):
                 'text': clean_txt,
                 'words': words_list
             })
+            
+        # Smooth and sequence whisper segments
+        for i in range(len(segs) - 1):
+            if segs[i]['end'] > segs[i+1]['start']:
+                segs[i]['end'] = segs[i+1]['start']
+            elif 0 < segs[i+1]['start'] - segs[i]['end'] < 0.25:
+                segs[i]['end'] = segs[i+1]['start']
+                
     except Exception as e:
         raise HTTPException(500, f'Whisper transcription error: {str(e)}')
         

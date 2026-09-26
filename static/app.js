@@ -44,6 +44,7 @@ function escapeHtml(str) {
 function cleanSubtitleText(txt) {
   if (!txt) return '';
   return txt
+    .replace(/[\u200b\u200c\u200d\u200e\u200f\ufeff\u00a0]+/g, ' ') // Strip zero-width & non-standard spaces
     .replace(/<[^>]+>/g, '') // Strip HTML tags
     .replace(/\[(?:Music|Applause|Laughter|Cheering|Audio|Sound|Silence|Noise|Snicker|Giggle|Sigh)[^\]]*\]/gi, '') // Strip sound tags
     .replace(/\((?:Music|Applause|Laughter|Cheering|Audio|Sound|Silence|Noise)[^\)]*\)/gi, '')
@@ -402,8 +403,12 @@ stageVideo.ontimeupdate = () => {
     return;
   }
 
-  // Find matching segment
-  const seg = project.segments.find(s => cur >= s.start && cur <= s.end);
+  // Find matching segment with 0.35s grace hold window to prevent flickering on speech pauses
+  let seg = project.segments.find(s => cur >= s.start && cur <= s.end);
+  if (!seg) {
+    seg = project.segments.find(s => cur >= s.start && cur <= s.end + 0.35 && (cur - s.end) < 0.35);
+  }
+
   if (seg) {
     const rawClean = cleanSubtitleText(seg.text);
     if (!rawClean) {
@@ -411,33 +416,65 @@ stageVideo.ontimeupdate = () => {
       return;
     }
 
-    const segDur = Math.max(0.4, seg.end - seg.start);
-    const words = rawClean.split(' ');
-    
-    // If long segment, calculate voice-matched sub-chunk (3-5 words)
     let displayChunk = rawClean;
-    if (words.length > 5 && segDur > 2.2) {
+
+    // 1. If word-level timestamps exist (e.g., from Whisper voice transcription)
+    if (seg.words && seg.words.length > 0) {
       const chunkSize = 4;
-      const totalChunks = Math.ceil(words.length / chunkSize);
-      const elapsed = cur - seg.start;
-      const currentChunkIdx = Math.min(totalChunks - 1, Math.floor((elapsed / segDur) * totalChunks));
-      const chunkWords = words.slice(currentChunkIdx * chunkSize, (currentChunkIdx + 1) * chunkSize);
-      displayChunk = chunkWords.join(' ');
-      
-      // If it's the final chunk of the sentence, check for rare contextual emoji
-      if (currentChunkIdx === totalChunks - 1) {
-        const emoji = getSentenceEndEmoji(rawClean);
-        const cleanChunk = displayChunk.replace(/[.!?,;]+$/, '');
-        displayChunk = emoji ? `${cleanChunk} ${emoji}` : cleanChunk;
+      let matchedChunk = null;
+      for (let i = 0; i < seg.words.length; i += chunkSize) {
+        const chunk = seg.words.slice(i, i + chunkSize);
+        const cStart = chunk[0].start;
+        const cEnd = chunk[chunk.length - 1].end;
+        if (cur >= cStart && cur <= cEnd + 0.35) {
+          const chunkText = chunk.map(w => w.word).join(' ').trim();
+          const cleanChunk = cleanSubtitleText(chunkText).replace(/[.!?,;]+$/, '');
+          const isLast = (i + chunkSize >= seg.words.length);
+          const emoji = isLast ? getSentenceEndEmoji(rawClean) : '';
+          displayChunk = emoji ? `${cleanChunk} ${emoji}` : cleanChunk;
+          matchedChunk = displayChunk;
+          break;
+        }
+      }
+      if (!matchedChunk) {
+        // If between words within the same segment, show the closest active chunk
+        const lastChunk = seg.words.slice(Math.max(0, seg.words.length - chunkSize));
+        const chunkText = lastChunk.map(w => w.word).join(' ').trim();
+        displayChunk = cleanSubtitleText(chunkText).replace(/[.!?,;]+$/, '');
       }
     } else {
-      const emoji = getSentenceEndEmoji(rawClean);
-      const cleanChunk = displayChunk.replace(/[.!?,;]+$/, '');
-      displayChunk = emoji ? `${cleanChunk} ${emoji}` : cleanChunk;
+      // 2. Proportional cadence chunking for segments without word timestamps
+      const segDur = Math.max(0.4, seg.end - seg.start);
+      const words = rawClean.split(' ').filter(Boolean);
+      
+      if (words.length > 5 && segDur > 2.0) {
+        const chunkSize = 4;
+        const totalChunks = Math.ceil(words.length / chunkSize);
+        const elapsed = Math.max(0, cur - seg.start);
+        const currentChunkIdx = Math.min(totalChunks - 1, Math.floor((elapsed / segDur) * totalChunks));
+        const chunkWords = words.slice(currentChunkIdx * chunkSize, (currentChunkIdx + 1) * chunkSize);
+        const chunkText = chunkWords.join(' ');
+        const cleanChunk = chunkText.replace(/[.!?,;]+$/, '');
+        
+        if (currentChunkIdx === totalChunks - 1) {
+          const emoji = getSentenceEndEmoji(rawClean);
+          displayChunk = emoji ? `${cleanChunk} ${emoji}` : cleanChunk;
+        } else {
+          displayChunk = cleanChunk;
+        }
+      } else {
+        const emoji = getSentenceEndEmoji(rawClean);
+        const cleanChunk = rawClean.replace(/[.!?,;]+$/, '');
+        displayChunk = emoji ? `${cleanChunk} ${emoji}` : cleanChunk;
+      }
     }
 
-    $('liveSubOverlay').style.display = 'block';
-    $('liveSubText').textContent = displayChunk;
+    if (displayChunk) {
+      $('liveSubOverlay').style.display = 'block';
+      $('liveSubText').textContent = displayChunk;
+    } else {
+      $('liveSubOverlay').style.display = 'none';
+    }
   } else {
     $('liveSubOverlay').style.display = 'none';
   }
@@ -466,7 +503,7 @@ async function startAIAnalysis() {
         target: targetDuration,
         count: targetClipCount,
         model: model,
-        force_whisper: false
+        force_whisper: true
       })
     });
 
