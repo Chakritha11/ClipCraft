@@ -792,13 +792,13 @@ video#stageVideo {
 /* Live Subtitle Overlay */
 .live-subtitle-overlay {
   position: absolute;
-  left: 20px;
-  right: 20px;
+  left: 14px;
+  right: 14px;
   bottom: 70px;
   text-align: center;
   pointer-events: none;
-  z-index: 15;
-  transition: all 0.2s ease;
+  z-index: 40;
+  transition: all 0.15s ease;
 }
 .live-subtitle-text {
   display: inline-block;
@@ -1219,6 +1219,19 @@ video#stageVideo {
 .transcript-row:hover {
   background: var(--bg-card-hover);
   border-color: var(--border-hover);
+}
+.transcript-row.active-speaking {
+  background: #2c2015;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 16px rgba(223, 160, 103, 0.25);
+}
+.transcript-row.active-speaking .transcript-time {
+  color: var(--viral-gold);
+  font-weight: 800;
+}
+.transcript-row.active-speaking .transcript-content {
+  color: #ffffff;
+  font-weight: 700;
 }
 .transcript-time {
   font-family: var(--font-mono);

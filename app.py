@@ -573,7 +573,24 @@ def import_url(x: URLIn):
         'thumbnail': thumbnail,
         'has_native_transcript': len(extracted_segments) > 0,
         'segment_count': len(extracted_segments),
+        'segments': extracted_segments,
         'clips': PROJECTS[pid]['clips']
+    }
+
+@app.get('/api/project/{pid}')
+def get_project(pid: str):
+    pr = PROJECTS.get(pid)
+    if not pr:
+        raise HTTPException(404, 'Project not found')
+    return {
+        'id': pid,
+        'name': pr.get('name'),
+        'duration': pr.get('duration'),
+        'formatted_duration': fmt_time(pr.get('duration', 0)),
+        'url': f"/media/uploads/{Path(pr['path']).name}",
+        'segments': pr.get('segments', []),
+        'clips': pr.get('clips', []),
+        'rendered_clips': pr.get('rendered_clips', [])
     }
 
 class Analyze(BaseModel):

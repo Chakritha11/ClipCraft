@@ -260,8 +260,8 @@ async function importYouTubeUrl() {
     loadProjectIntoStudio(data);
     hidePipeline();
 
-    if (data.has_native_transcript) {
-      toast(`Imported with ${data.segment_count} voice captions!`, '⚡');
+    if (data.segments && data.segments.length > 0) {
+      toast(`Imported with ${data.segments.length} voice captions!`, '⚡');
       drawClips();
       drawTranscript();
     } else {
@@ -274,6 +274,35 @@ async function importYouTubeUrl() {
   } finally {
     importBtn.disabled = false;
     importText.textContent = 'Import';
+  }
+}
+
+// --- Quick Demo Sample Video Loader ---
+async function quickLoadDemoSample() {
+  const btn = $('btnQuickDemo');
+  if (btn) btn.disabled = true;
+  showPipeline('Loading demo video & captions…', 'Step 1/2', 40);
+
+  try {
+    const res = await fetch('/api/sample');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Could not load demo sample');
+
+    project = data;
+    loadProjectIntoStudio(data);
+    drawClips();
+    drawTranscript();
+    hidePipeline();
+
+    toast('Loaded Demo Video with captions & transcript! ▶ Playing');
+    setTimeout(() => {
+      stageVideo.play().catch(() => {});
+    }, 400);
+  } catch (err) {
+    hidePipeline();
+    toast(err.message, '❌');
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -323,6 +352,7 @@ async function uploadFile(file) {
 
 // --- Load Project into Studio Stage ---
 function loadProjectIntoStudio(data) {
+  project = data;
   $('topVideoTitle').textContent = data.name || 'Video Project';
   $('topVideoSpecs').textContent = `${formatTime(data.duration)} duration • Ready for clipping`;
   
@@ -335,6 +365,10 @@ function loadProjectIntoStudio(data) {
     $('totTimecode').textContent = formatTime(video.duration);
     $('videoScrubber').max = video.duration || 100;
   };
+
+  const count = (data.segments || []).length;
+  const badge = $('transcriptCountBadge');
+  if (badge) badge.textContent = count;
 
   $('engineStatusText').textContent = 'Project Active • Ready';
   switchWorkTab('clipsTabBtn', 'clipsPanel');
@@ -398,15 +432,31 @@ stageVideo.ontimeupdate = () => {
   }
 
   // Live Subtitle Overlay Text Sync
+  if (project && (!project.segments || !project.segments.length) && project.clips && project.clips.length) {
+    project.segments = project.clips.map(c => ({
+      start: c.start,
+      end: c.end,
+      text: c.text
+    }));
+  }
+
   if (!project || !project.segments || !project.segments.length) {
     $('liveSubOverlay').style.display = 'none';
     return;
   }
 
-  // Find matching segment with 0.35s grace hold window to prevent flickering on speech pauses
+  // Find matching segment with 0.45s grace hold window to prevent flickering on speech pauses
   let seg = project.segments.find(s => cur >= s.start && cur <= s.end);
   if (!seg) {
-    seg = project.segments.find(s => cur >= s.start && cur <= s.end + 0.35 && (cur - s.end) < 0.35);
+    seg = project.segments.find(s => cur >= s.start && cur <= s.end + 0.45 && (cur - s.end) < 0.45);
+  }
+
+  // Fallback: If previewing a clip and no micro-segment matched, use the active clip's text!
+  if (!seg && clipPreviewRange && project.clips) {
+    const activeClip = project.clips.find(c => cur >= c.start && cur <= c.end + 0.45);
+    if (activeClip && activeClip.text) {
+      seg = { start: activeClip.start, end: activeClip.end, text: activeClip.text };
+    }
   }
 
   if (seg) {
@@ -477,6 +527,34 @@ stageVideo.ontimeupdate = () => {
     }
   } else {
     $('liveSubOverlay').style.display = 'none';
+  }
+
+  // Live Active Transcript Row Tracking
+  const transcriptRows = document.querySelectorAll('.transcript-row');
+  if (transcriptRows.length > 0) {
+    let matchedRow = null;
+    transcriptRows.forEach(row => {
+      const start = parseFloat(row.getAttribute('data-start'));
+      const end = parseFloat(row.getAttribute('data-end'));
+      if (cur >= start && cur <= end + 0.35) {
+        matchedRow = row;
+      }
+    });
+
+    transcriptRows.forEach(r => {
+      if (r === matchedRow) {
+        if (!r.classList.contains('active-speaking')) {
+          r.classList.add('active-speaking');
+          const container = $('transcriptContainer');
+          if (container && $('transcriptPanel').classList.contains('active') && matchedRow) {
+            const rowTop = matchedRow.offsetTop - container.offsetTop;
+            container.scrollTo({ top: Math.max(0, rowTop - 60), behavior: 'smooth' });
+          }
+        }
+      } else {
+        r.classList.remove('active-speaking');
+      }
+    });
   }
 };
 
@@ -837,15 +915,21 @@ function updateExportHistoryUI() {
 // --- Interactive Transcript ---
 function drawTranscript() {
   const container = $('transcriptContainer');
-  const segs = project ? (project.segments || []) : [];
+  let segs = project ? (project.segments || []) : [];
+  if (!segs.length && project && project.clips && project.clips.length) {
+    segs = project.clips.map(c => ({ start: c.start, end: c.end, text: c.text }));
+  }
   const query = ($('transcriptSearchInput').value || '').toLowerCase();
 
   const filtered = segs.filter(s => cleanSubtitleText(s.text).toLowerCase().includes(query));
 
+  const badge = $('transcriptCountBadge');
+  if (badge) badge.textContent = filtered.length;
+
   if (!filtered.length) {
     container.innerHTML = `
       <div class="stage-empty-state" style="position:static; padding:30px;">
-        <div class="empty-desc">No matching phrases found.</div>
+        <div class="empty-desc">No matching phrases found. Import a video or click 'Craft Viral Clips'.</div>
       </div>
     `;
     return;
@@ -857,7 +941,7 @@ function drawTranscript() {
     const formatted = emoji ? `${cleanText} ${emoji}` : cleanText;
 
     return `
-      <div class="transcript-row" onclick="seekTranscript(${s.start})">
+      <div class="transcript-row" data-start="${s.start}" data-end="${s.end}" onclick="seekTranscript(${s.start})">
         <span class="transcript-time">${formatTime(s.start)}</span>
         <span class="transcript-content">${highlightQuery(escapeHtml(formatted), query)}</span>
         <button class="btn-clip-sentence" onclick="event.stopPropagation(); craftSentenceClip(${s.start}, ${s.end}, '${escapeHtml(cleanText.replace(/'/g, ''))}')">

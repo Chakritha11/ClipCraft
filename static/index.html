@@ -99,6 +99,11 @@
               </button>
             </div>
 
+            <!-- Quick Demo Button -->
+            <button type="button" class="btn-secondary" id="btnQuickDemo" onclick="quickLoadDemoSample()" style="width:100%; margin-top:8px; font-size:11px; padding:6px 10px; display:flex; align-items:center; justify-content:center; gap:6px;">
+              <span>🎬</span> Quick Test: Load Demo Zoo Video (With Captions)
+            </button>
+
             <!-- YouTube Live Metadata Preview Card -->
             <div class="yt-preview-card" id="ytPreviewCard">
               <div class="yt-thumb-box">
@@ -335,7 +340,7 @@
           </button>
           <button class="work-tab-btn" id="transcriptTabBtn" onclick="switchWorkTab('transcriptTabBtn', 'transcriptPanel')">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-            Interactive Transcript
+            Interactive Transcript <span class="control-badge" id="transcriptCountBadge" style="margin-left:4px;">0</span>
           </button>
           <button class="work-tab-btn" id="captionLabTabBtn" onclick="switchWorkTab('captionLabTabBtn', 'captionLabPanel')">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3"></path><path d="M9 20h6"></path><path d="M12 4v16"></path></svg>
